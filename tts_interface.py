@@ -102,6 +102,19 @@ class TTSProvider(ABC):
         """
         pass
     
+    def get_frequency_bands(self, num_bands: int = 10) -> list[float]:
+        """
+        Get frequency band amplitudes for audio visualization.
+        
+        Args:
+            num_bands: Number of frequency bands to return
+            
+        Returns:
+            List of normalized amplitude values (0.0-1.0) for each frequency band.
+            Returns zeros if not supported or no audio playing.
+        """
+        return [0.0] * num_bands
+    
     @property
     @abstractmethod
     def name(self) -> str:

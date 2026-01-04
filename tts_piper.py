@@ -35,6 +35,7 @@ class PiperTTSProvider(TTSProvider):
         self._is_paused = False
         self._stream: Optional[sd.OutputStream] = None
         self._finished_event = threading.Event()
+        self._current_chunk: Optional[np.ndarray] = None  # For visualization
     
     @property
     def name(self) -> str:
@@ -120,6 +121,9 @@ class PiperTTSProvider(TTSProvider):
             
             # Copy audio data to output buffer
             outdata[:to_copy, 0] = self._audio_data[start:start + to_copy]
+            
+            # Store current chunk for visualization
+            self._current_chunk = self._audio_data[start:start + to_copy].copy()
             
             # Zero-fill any remaining frames
             if to_copy < frames:
@@ -253,4 +257,60 @@ class PiperTTSProvider(TTSProvider):
         
         # If playing, the callback will naturally pick up the new position
         # If paused, position is updated for next resume
+    
+    def get_frequency_bands(self, num_bands: int = 10) -> list[float]:
+        """Get frequency band amplitudes for visualization using FFT.
+        
+        Args:
+            num_bands: Number of frequency bands to return
+            
+        Returns:
+            List of normalized amplitude values (0.0-1.0) for each frequency band
+        """
+        with self._lock:
+            # Return zeros if no current chunk or chunk too small
+            if self._current_chunk is None or len(self._current_chunk) < 128:
+                return [0.0] * num_bands
+            
+            chunk = self._current_chunk.copy()
+        
+        # Apply windowing to reduce spectral leakage
+        window = np.hanning(len(chunk))
+        windowed_chunk = chunk * window
+        
+        # Perform FFT to get frequency spectrum
+        fft_data = np.fft.rfft(windowed_chunk)
+        fft_magnitude = np.abs(fft_data)
+        
+        # Split into logarithmic frequency bands (more natural for audio)
+        # Low frequencies get more resolution, high frequencies less
+        bands = []
+        
+        if len(fft_magnitude) > num_bands:
+            # Use logarithmic spacing for more natural frequency distribution
+            band_edges = np.logspace(0, np.log10(len(fft_magnitude)), num_bands + 1)
+            band_edges = band_edges.astype(int)
+            
+            for i in range(num_bands):
+                start = band_edges[i]
+                end = min(band_edges[i + 1], len(fft_magnitude))
+                
+                if end > start:
+                    # Use RMS (root mean square) for better energy representation
+                    band_energy = np.sqrt(np.mean(fft_magnitude[start:end] ** 2))
+                    bands.append(float(band_energy))
+                else:
+                    bands.append(0.0)
+        else:
+            # Fallback for very small chunks
+            bands = [float(x) for x in fft_magnitude[:num_bands]]
+            bands.extend([0.0] * (num_bands - len(bands)))
+        
+        # Normalize to 0-1 range with dynamic scaling
+        if bands and max(bands) > 0:
+            max_val = max(bands)
+            # Apply compression curve for better visualization
+            bands = [(b / max_val) ** 0.7 for b in bands]  # Power curve for dynamic range
+        
+        return bands
 
