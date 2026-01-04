@@ -77,7 +77,6 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         except Exception as e:
             print(f"Error during speech: {e}", file=sys.stderr)
         finally:
-            # Close the window when done
             GLib.idle_add(self.close_window)
     
     def close_window(self):
@@ -95,9 +94,10 @@ class SpeakingApp(Gtk.Application):
     
     def do_activate(self):
         """Create and show the window."""
-        if not self.window:
-            self.window = SpeakingWindow(self, self.text, self.tts_provider)
-            self.window.present()
+        if self.window:
+            return
+        self.window = SpeakingWindow(self, self.text, self.tts_provider)
+        self.window.present()
 
 
 def main():

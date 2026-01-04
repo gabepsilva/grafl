@@ -3,7 +3,7 @@
 Piper TTS provider implementation.
 """
 
-import os
+from pathlib import Path
 import subprocess
 from typing import Optional, Dict, Any
 from tts_interface import TTSProvider, TTSError
@@ -16,12 +16,12 @@ class PiperTTSProvider(TTSProvider):
         super().__init__(config)
         
         # Default configuration
-        self.script_dir = self.config.get('script_dir', 
-                                          os.path.dirname(os.path.abspath(__file__)))
+        script_dir = Path(__file__).parent.resolve()
+        self.script_dir = self.config.get('script_dir', str(script_dir))
         self.piper_bin = self.config.get('piper_bin', 
-                                         os.path.join(self.script_dir, "venv", "bin", "piper"))
+                                         str(Path(self.script_dir) / "venv" / "bin" / "piper"))
         self.model_path = self.config.get('model_path',
-                                          os.path.join(self.script_dir, "en_US-lessac-medium"))
+                                          str(Path(self.script_dir) / "en_US-lessac-medium"))
         self.sample_rate = self.config.get('sample_rate', 22050)
     
     @property
@@ -30,9 +30,9 @@ class PiperTTSProvider(TTSProvider):
     
     def validate_config(self) -> bool:
         """Check if piper binary and model exist."""
-        if not os.path.exists(self.piper_bin):
+        if not Path(self.piper_bin).exists():
             return False
-        if not os.path.exists(f"{self.model_path}.onnx"):
+        if not Path(f"{self.model_path}.onnx").exists():
             return False
         return True
     
@@ -74,7 +74,7 @@ class PiperTTSProvider(TTSProvider):
                 raise TTSError(f"Paplay process failed with code {paplay_process.returncode}")
                 
         except subprocess.SubprocessError as e:
-            raise TTSError(f"Subprocess error during speech: {e}")
+            raise TTSError(f"Subprocess error during speech: {e}") from e
         except Exception as e:
-            raise TTSError(f"Error during speech: {e}")
+            raise TTSError(f"Error during speech: {e}") from e
 
