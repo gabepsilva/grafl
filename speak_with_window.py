@@ -10,6 +10,7 @@ from gi.repository import Gtk, GLib, Gdk
 import sys
 import threading
 import time
+import math
 
 # Import TTS interface
 from tts_interface import TTSProvider, TTSError
@@ -21,6 +22,7 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         self.text = text
         self.tts_provider = tts_provider
         self._playback_started = False
+        self._wave_offset = 0  # For waveform animation
         
         # Connect close handler
         self.connect("close-request", self.on_close_request)
@@ -32,26 +34,36 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         # Make it borderless and float on top
         self.set_decorated(False)
         
-        # Apply CSS for semi-transparent background
+        # Apply CSS for compact bar design
         css_provider = Gtk.CssProvider()
         css_provider.load_from_data(b"""
             window {
-                background-color: rgba(0, 0, 0, 0.85);
-                border-radius: 12px;
+                background-color: rgba(0, 0, 0, 1.0);
+                border-radius: 5px;
+                border: 1px solid rgba(255, 255, 255, 1.0);
             }
-            label {
+            .icon-label {
                 color: white;
-                font-size: 16px;
+                font-size: 24px;
+            }
+            .wave-bar {
+                background-color: rgba(255, 255, 255, 0.6);
+                border-radius: 2px;
+                min-width: 3px;
             }
             button {
-                background-color: rgba(255, 255, 255, 0.2);
+                background-color: rgba(255, 255, 255, 0.15);
                 color: white;
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                border-radius: 6px;
-                padding: 8px 16px;
+                border: none;
+                border-radius: 50%;
+                min-width: 36px;
+                min-height: 36px;
+                padding: 0;
+                font-size: 14px;
+                font-weight: 600;
             }
             button:hover {
-                background-color: rgba(255, 255, 255, 0.3);
+                background-color: rgba(255, 255, 255, 0.25);
             }
         """)
         
@@ -62,59 +74,74 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
         
-        # Create UI - centered label and control buttons
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        box.set_margin_top(20)
-        box.set_margin_bottom(20)
-        box.set_margin_start(30)
-        box.set_margin_end(30)
-        box.set_halign(Gtk.Align.CENTER)
-        box.set_valign(Gtk.Align.CENTER)
+        # Create UI - compact horizontal bar layout
+        main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        main_box.set_margin_top(12)
+        main_box.set_margin_bottom(12)
+        main_box.set_margin_start(20)
+        main_box.set_margin_end(20)
+        main_box.set_halign(Gtk.Align.CENTER)
+        main_box.set_valign(Gtk.Align.CENTER)
         
-        # Status label - simple and clean
-        self.label = Gtk.Label()
-        self.label.set_markup("<span size='large'>🔊 Speaking...</span>")
-        self.label.set_halign(Gtk.Align.CENTER)
-        box.append(self.label)
+        # Speaker icon
+        icon_label = Gtk.Label(label="🔊")
+        icon_label.add_css_class("icon-label")
+        main_box.append(icon_label)
         
-        # Control buttons
-        button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        button_box.set_halign(Gtk.Align.CENTER)
+        # Waveform visualization (10 bars)
+        waveform_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        waveform_box.set_halign(Gtk.Align.CENTER)
+        waveform_box.set_valign(Gtk.Align.CENTER)
+        waveform_box.set_size_request(80, 32)
+        
+        # Create 10 wave bars with varying initial heights
+        self.wave_bars = []
+        wave_heights = [8, 16, 24, 20, 12, 18, 14, 22, 10, 16]
+        for height in wave_heights:
+            bar = Gtk.Box()
+            bar.add_css_class("wave-bar")
+            bar.set_size_request(3, height)
+            bar.set_valign(Gtk.Align.CENTER)
+            waveform_box.append(bar)
+            self.wave_bars.append((bar, height))
+        
+        main_box.append(waveform_box)
+        
+        # Control buttons (circular)
+        controls_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        controls_box.set_halign(Gtk.Align.CENTER)
         
         # Skip backward button
-        self.skip_backward_button = Gtk.Button(label="⏪ -5s")
+        self.skip_backward_button = Gtk.Button(label="-5s")
         self.skip_backward_button.connect("clicked", self.on_skip_backward_clicked)
-        button_box.append(self.skip_backward_button)
-        
-        # Pause button
-        self.pause_button = Gtk.Button(label="⏸ Pause")
-        self.pause_button.connect("clicked", self.on_pause_clicked)
-        button_box.append(self.pause_button)
-        
-        # Resume button (initially hidden)
-        self.resume_button = Gtk.Button(label="▶ Resume")
-        self.resume_button.connect("clicked", self.on_resume_clicked)
-        self.resume_button.set_visible(False)
-        button_box.append(self.resume_button)
+        controls_box.append(self.skip_backward_button)
         
         # Skip forward button
-        self.skip_forward_button = Gtk.Button(label="⏩ +5s")
+        self.skip_forward_button = Gtk.Button(label="+5s")
         self.skip_forward_button.connect("clicked", self.on_skip_forward_clicked)
-        button_box.append(self.skip_forward_button)
+        controls_box.append(self.skip_forward_button)
+        
+        # Pause/Resume button (toggle)
+        self.pause_button = Gtk.Button(label="⏸")
+        self.pause_button.connect("clicked", self.on_pause_clicked)
+        controls_box.append(self.pause_button)
         
         # Stop button
-        self.stop_button = Gtk.Button(label="⏹ Stop")
+        self.stop_button = Gtk.Button(label="⏹")
         self.stop_button.connect("clicked", self.on_stop_clicked)
-        button_box.append(self.stop_button)
+        controls_box.append(self.stop_button)
         
-        box.append(button_box)
-        self.set_child(box)
+        main_box.append(controls_box)
+        self.set_child(main_box)
         
-        # Update window size for buttons (wider to accommodate skip buttons)
-        self.set_default_size(400, 120)
+        # Compact window size for bar design
+        self.set_default_size(380, 60)
         
         # Start status update timer
         GLib.timeout_add(100, self.update_status)
+        
+        # Start waveform animation timer
+        GLib.timeout_add(75, self.animate_waveform)
         
         # Start speaking in a separate thread
         threading.Thread(target=self.speak_text, daemon=True).start()
@@ -142,12 +169,11 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             print(f"Error {action_name}: {e}", file=sys.stderr)
     
     def on_pause_clicked(self, button):
-        """Handle pause button click."""
-        self._handle_tts_action("pausing", self.tts_provider.pause)
-    
-    def on_resume_clicked(self, button):
-        """Handle resume button click."""
-        self._handle_tts_action("resuming", self.tts_provider.resume)
+        """Handle pause/resume button click (toggle)."""
+        if self.tts_provider.is_paused():
+            self._handle_tts_action("resuming", self.tts_provider.resume)
+        else:
+            self._handle_tts_action("pausing", self.tts_provider.pause)
     
     def on_skip_backward_clicked(self, button):
         """Handle skip backward button click."""
@@ -172,15 +198,11 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             self._playback_started = True
         
         if is_playing:
-            self.label.set_markup("<span size='large'>🔊 Speaking...</span>")
-            self.pause_button.set_visible(True)
-            self.resume_button.set_visible(False)
+            self.pause_button.set_label("⏸")
             return True
         
         if is_paused:
-            self.label.set_markup("<span size='large'>⏸ Paused</span>")
-            self.pause_button.set_visible(False)
-            self.resume_button.set_visible(True)
+            self.pause_button.set_label("▶")
             return True
         
         # Not playing and not paused
@@ -190,7 +212,47 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             return False  # Stop timer
         
         # Playback hasn't started yet - keep waiting
-        self.label.set_markup("<span size='large'>🔊 Preparing...</span>")
+        return True
+    
+    def animate_waveform(self):
+        """Animate the waveform bars using real-time frequency analysis."""
+        # Only stop animation if playback has finished
+        if self._playback_started and not self.tts_provider.is_playing() and not self.tts_provider.is_paused():
+            # Playback finished - stop animation
+            return False
+        
+        # Try real-time frequency analysis when playing
+        use_sine_fallback = True
+        if self.tts_provider.is_playing():
+            # Get frequency bands from audio (WinAmp-style spectrum analyzer!)
+            bands = self.tts_provider.get_frequency_bands(10)
+            
+            # Check if provider actually supports frequency analysis
+            # (if all bands are zero or very low, fall back to sine wave)
+            if max(bands) > 0.01:  # Has real audio data
+                use_sine_fallback = False
+                for i, (bar, base_height) in enumerate(self.wave_bars):
+                    # Map frequency band to bar height (8-24 px range)
+                    min_height = 8
+                    max_height = 24
+                    animated_height = int(min_height + bands[i] * (max_height - min_height))
+                    bar.set_size_request(3, animated_height)
+        
+        # Fall back to sine wave animation if:
+        # - Not playing/paused, OR
+        # - Provider doesn't support frequency analysis
+        if use_sine_fallback:
+            self._wave_offset = (self._wave_offset + 1) % 100
+            
+            for i, (bar, base_height) in enumerate(self.wave_bars):
+                # Calculate animated height using sine wave
+                phase = (self._wave_offset + i * 10) / 100.0 * 2 * math.pi
+                wave_factor = (math.sin(phase) + 1) / 2  # 0 to 1
+                min_height = 8
+                max_height = 24
+                animated_height = int(min_height + wave_factor * (max_height - min_height))
+                bar.set_size_request(3, animated_height)
+        
         return True
     
     def _stop_audio_if_playing(self):
