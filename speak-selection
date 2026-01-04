@@ -1,12 +1,63 @@
-#!/usr/bin/env bash
-# Script to speak selected text using piper TTS with GTK4 window
-# This script can be called from any directory
+#!/home/gabriel/git_projects/grafl/venv/bin/python3
+"""
+Speak selected text using piper TTS with GTK4 window.
+This script can be called directly or via keybindings.
+"""
 
-SCRIPT_DIR="/home/gabriel/git_projects/grafl"
-GET_TEXT_SCRIPT="${SCRIPT_DIR}/get_selected_text.py"
-SPEAK_WITH_WINDOW="${SCRIPT_DIR}/speak_with_window.py"
-PYTHON="${SCRIPT_DIR}/venv/bin/python3"
+import sys
+import subprocess
+from pathlib import Path
 
-# Run the pipeline with GTK window using venv Python
-"${PYTHON}" "${GET_TEXT_SCRIPT}" | "${PYTHON}" "${SPEAK_WITH_WINDOW}"
+# Add script directory to Python path for imports
+SCRIPT_DIR = Path(__file__).parent.resolve()
+sys.path.insert(0, str(SCRIPT_DIR))
 
+from get_selected_text import run_clipboard_command
+from speak_with_window import SpeakingApp
+from tts_piper import PiperTTSProvider
+
+
+def get_selected_text():
+    """Try multiple clipboard/selection tools in priority order."""
+    methods = [
+        ['xsel', '-p', '-o'],
+        ['xsel', '-b', '-o'],
+        ['xclip', '-selection', 'primary', '-o'],
+        ['xclip', '-selection', 'clipboard', '-o'],
+        ['wl-paste', '-p'],
+        ['wl-paste'],
+    ]
+    
+    for command in methods:
+        text = run_clipboard_command(command)
+        if text:
+            return text
+    
+    return None
+
+
+def main():
+    # Get selected text
+    text = get_selected_text()
+    
+    if not text or not text.strip():
+        print("No selected text found. Make sure xsel, xclip, or wl-paste is installed.", 
+              file=sys.stderr)
+        return 1
+    
+    # Create and validate TTS provider
+    tts_provider = PiperTTSProvider()
+    if not tts_provider.validate_config():
+        print(f"TTS provider '{tts_provider.name}' is not properly configured", 
+              file=sys.stderr)
+        return 1
+    
+    # Run GTK app with selected text
+    app = SpeakingApp(text.strip(), tts_provider)
+    app.run(None)
+    
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
