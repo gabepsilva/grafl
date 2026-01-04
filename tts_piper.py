@@ -20,11 +20,11 @@ class PiperTTSProvider(TTSProvider):
         
         # Default configuration
         script_dir = Path(__file__).parent.resolve()
-        self.script_dir = self.config.get('script_dir', str(script_dir))
-        self.piper_bin = self.config.get('piper_bin', 
-                                         str(Path(self.script_dir) / "venv" / "bin" / "piper"))
-        self.model_path = self.config.get('model_path',
-                                          str(Path(self.script_dir) / "en_US-lessac-medium"))
+        self.script_dir = Path(self.config.get('script_dir', script_dir))
+        self.piper_bin = Path(self.config.get('piper_bin', 
+                                               self.script_dir / "venv" / "bin" / "piper"))
+        self.model_path = Path(self.config.get('model_path',
+                                                self.script_dir / "en_US-lessac-medium"))
         self.sample_rate = self.config.get('sample_rate', 22050)
         
         # Playback state
@@ -42,11 +42,8 @@ class PiperTTSProvider(TTSProvider):
     
     def validate_config(self) -> bool:
         """Check if piper binary and model exist."""
-        if not Path(self.piper_bin).exists():
-            return False
-        if not Path(f"{self.model_path}.onnx").exists():
-            return False
-        return True
+        return (self.piper_bin.exists() and 
+                self.model_path.with_suffix('.onnx').exists())
     
     def speak(self, text: str) -> None:
         """Speak text using Piper and sounddevice (non-blocking)."""
@@ -56,7 +53,7 @@ class PiperTTSProvider(TTSProvider):
         try:
             # Generate audio with piper
             piper_process = subprocess.Popen(
-                [self.piper_bin, "--model", self.model_path, "--output_file", "-"],
+                [str(self.piper_bin), "--model", str(self.model_path), "--output_file", "-"],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
@@ -99,8 +96,6 @@ class PiperTTSProvider(TTSProvider):
         except subprocess.SubprocessError as e:
             raise TTSError(f"Subprocess error during speech: {e}") from e
         except Exception as e:
-            if isinstance(e, TTSError):
-                raise
             raise TTSError(f"Error during speech: {e}") from e
     
     def _audio_callback(self, outdata, frames, time_info, status):
@@ -191,8 +186,8 @@ class PiperTTSProvider(TTSProvider):
         except Exception as e:
             raise TTSError(f"Error resuming playback: {e}") from e
     
-    def stop(self) -> None:
-        """Stop the current speech playback."""
+    def _stop_stream(self) -> None:
+        """Stop and close the audio stream. Ignores errors."""
         try:
             if self._stream:
                 self._stream.stop()
@@ -200,6 +195,10 @@ class PiperTTSProvider(TTSProvider):
                 self._stream = None
         except Exception:
             pass  # Ignore errors when stopping
+    
+    def stop(self) -> None:
+        """Stop the current speech playback."""
+        self._stop_stream()
         
         with self._lock:
             self._is_playing = False
@@ -215,4 +214,43 @@ class PiperTTSProvider(TTSProvider):
         """Check if speech is currently paused."""
         with self._lock:
             return self._is_paused
+    
+    def skip_forward(self, seconds: float) -> None:
+        """Skip forward in the current speech playback."""
+        if self._audio_data is None:
+            return
+        
+        with self._lock:
+            samples_to_skip = int(seconds * self.sample_rate)
+            new_position = self._playback_position + samples_to_skip
+            reached_end = new_position >= len(self._audio_data)
+            
+            # Clamp to end of audio
+            self._playback_position = min(new_position, len(self._audio_data))
+            
+            if reached_end:
+                # If we've reached the end, stop playback (reset both playing and paused states)
+                self._is_playing = False
+                self._is_paused = False
+        
+        # Stop stream if we reached the end
+        if reached_end:
+            self._stop_stream()
+        
+        # If playing, the callback will naturally pick up the new position
+        # If paused, position is updated for next resume
+    
+    def skip_backward(self, seconds: float) -> None:
+        """Skip backward in the current speech playback."""
+        if self._audio_data is None:
+            return
+        
+        with self._lock:
+            samples_to_skip = int(seconds * self.sample_rate)
+            new_position = self._playback_position - samples_to_skip
+            # Clamp to start of audio
+            self._playback_position = max(0, new_position)
+        
+        # If playing, the callback will naturally pick up the new position
+        # If paused, position is updated for next resume
 

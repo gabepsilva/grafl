@@ -78,6 +78,30 @@ class TTSProvider(ABC):
         """
         return False
     
+    def skip_forward(self, seconds: float) -> None:
+        """
+        Skip forward in the current speech playback.
+        
+        Args:
+            seconds: Number of seconds to skip forward
+            
+        Raises:
+            TTSError: If skip operation fails
+        """
+        pass
+    
+    def skip_backward(self, seconds: float) -> None:
+        """
+        Skip backward in the current speech playback.
+        
+        Args:
+            seconds: Number of seconds to skip backward
+            
+        Raises:
+            TTSError: If skip operation fails
+        """
+        pass
+    
     @property
     @abstractmethod
     def name(self) -> str:

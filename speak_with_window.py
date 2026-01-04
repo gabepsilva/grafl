@@ -9,6 +9,7 @@ gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, GLib, Gdk
 import sys
 import threading
+import time
 
 # Import TTS interface
 from tts_interface import TTSProvider, TTSError
@@ -80,6 +81,11 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         button_box.set_halign(Gtk.Align.CENTER)
         
+        # Skip backward button
+        self.skip_backward_button = Gtk.Button(label="⏪ -5s")
+        self.skip_backward_button.connect("clicked", self.on_skip_backward_clicked)
+        button_box.append(self.skip_backward_button)
+        
         # Pause button
         self.pause_button = Gtk.Button(label="⏸ Pause")
         self.pause_button.connect("clicked", self.on_pause_clicked)
@@ -91,6 +97,11 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         self.resume_button.set_visible(False)
         button_box.append(self.resume_button)
         
+        # Skip forward button
+        self.skip_forward_button = Gtk.Button(label="⏩ +5s")
+        self.skip_forward_button.connect("clicked", self.on_skip_forward_clicked)
+        button_box.append(self.skip_forward_button)
+        
         # Stop button
         self.stop_button = Gtk.Button(label="⏹ Stop")
         self.stop_button.connect("clicked", self.on_stop_clicked)
@@ -99,8 +110,8 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         box.append(button_box)
         self.set_child(box)
         
-        # Update window size for buttons
-        self.set_default_size(300, 120)
+        # Update window size for buttons (wider to accommodate skip buttons)
+        self.set_default_size(400, 120)
         
         # Start status update timer
         GLib.timeout_add(100, self.update_status)
@@ -113,7 +124,6 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         try:
             self.tts_provider.speak(self.text)
             # Give playback time to start
-            import time
             time.sleep(0.2)
             # Wait for playback to complete
             while self.tts_provider.is_playing() or self.tts_provider.is_paused():
@@ -124,28 +134,33 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             print(f"Error during speech: {e}", file=sys.stderr)
         # Don't close here - let update_status handle it
     
+    def _handle_tts_action(self, action_name: str, action_func):
+        """Common error handling for TTS actions."""
+        try:
+            action_func()
+        except TTSError as e:
+            print(f"Error {action_name}: {e}", file=sys.stderr)
+    
     def on_pause_clicked(self, button):
         """Handle pause button click."""
-        try:
-            self.tts_provider.pause()
-        except TTSError as e:
-            print(f"Error pausing: {e}", file=sys.stderr)
+        self._handle_tts_action("pausing", self.tts_provider.pause)
     
     def on_resume_clicked(self, button):
         """Handle resume button click."""
-        try:
-            self.tts_provider.resume()
-        except TTSError as e:
-            print(f"Error resuming: {e}", file=sys.stderr)
+        self._handle_tts_action("resuming", self.tts_provider.resume)
+    
+    def on_skip_backward_clicked(self, button):
+        """Handle skip backward button click."""
+        self._handle_tts_action("skipping backward", lambda: self.tts_provider.skip_backward(5.0))
+    
+    def on_skip_forward_clicked(self, button):
+        """Handle skip forward button click."""
+        self._handle_tts_action("skipping forward", lambda: self.tts_provider.skip_forward(5.0))
     
     def on_stop_clicked(self, button):
         """Handle stop button click."""
-        try:
-            self.tts_provider.stop()
-        except TTSError as e:
-            print(f"Error stopping: {e}", file=sys.stderr)
-        finally:
-            self.close()
+        self._handle_tts_action("stopping", self.tts_provider.stop)
+        self.close()
     
     def update_status(self):
         """Update UI based on playback status."""
@@ -160,39 +175,40 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             self.label.set_markup("<span size='large'>🔊 Speaking...</span>")
             self.pause_button.set_visible(True)
             self.resume_button.set_visible(False)
-        elif is_paused:
+            return True
+        
+        if is_paused:
             self.label.set_markup("<span size='large'>⏸ Paused</span>")
             self.pause_button.set_visible(False)
             self.resume_button.set_visible(True)
-        else:
-            # Not playing and not paused
-            if self._playback_started:
-                # Playback has started and now finished - close window
-                GLib.idle_add(self.close_window)
-                return False  # Stop timer
-            # Playback hasn't started yet - keep waiting
-            self.label.set_markup("<span size='large'>🔊 Preparing...</span>")
+            return True
         
-        return True  # Continue timer
+        # Not playing and not paused
+        if self._playback_started:
+            # Playback has started and now finished - close window
+            GLib.idle_add(self.close_window)
+            return False  # Stop timer
+        
+        # Playback hasn't started yet - keep waiting
+        self.label.set_markup("<span size='large'>🔊 Preparing...</span>")
+        return True
     
-    def on_close_request(self, window):
-        """Handle window close request."""
-        # Stop audio if still playing
+    def _stop_audio_if_playing(self):
+        """Stop audio if currently playing or paused."""
         try:
             if self.tts_provider.is_playing() or self.tts_provider.is_paused():
                 self.tts_provider.stop()
         except Exception:
-            pass
+            pass  # Ignore errors when stopping
+    
+    def on_close_request(self, window):
+        """Handle window close request."""
+        self._stop_audio_if_playing()
         return False  # Allow window to close
     
     def close_window(self):
         """Close the window (called from main thread)."""
-        # Stop audio if still playing
-        try:
-            if self.tts_provider.is_playing() or self.tts_provider.is_paused():
-                self.tts_provider.stop()
-        except Exception:
-            pass
+        self._stop_audio_if_playing()
         self.close()
         return False
 
