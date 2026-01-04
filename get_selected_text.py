@@ -38,7 +38,6 @@ def main():
     Try multiple clipboard/selection tools in priority order.
     Exits with code 0 on success, 1 on failure.
     """
-    # Try methods in priority order
     # Primary selections are preferred over clipboard for quick text selection
     methods = [
         ['xsel', '-p', '-o'],           # xsel primary selection
@@ -55,7 +54,6 @@ def main():
             print(text, end='')
             return 0
     
-    # No method succeeded
     print("No selected text found. Make sure xsel, xclip, or wl-paste is installed.", 
           file=sys.stderr)
     return 1

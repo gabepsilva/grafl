@@ -9,15 +9,10 @@ import subprocess
 import os
 from pathlib import Path
 
-# Prefer Wayland backend for proper transparency/styling
-# Must be set BEFORE importing any GTK modules
-# On Wayland systems: CSS transparency works correctly
-# On X11 systems: Transparency may not work, but app will still function
+# Prefer Wayland for proper CSS transparency (must be set before GTK imports)
 if os.environ.get('WAYLAND_DISPLAY'):
-    # Wayland is available - use it for correct styling
     os.environ['GDK_BACKEND'] = 'wayland'
 elif os.environ.get('DISPLAY') and not os.environ.get('GDK_BACKEND'):
-    # Only X11 available - warn about potential styling issues
     print("Warning: Running on X11. Window transparency may not work correctly.", 
           file=sys.stderr)
 
@@ -30,28 +25,22 @@ from speak_with_window import SpeakingApp
 from tts_piper import PiperTTSProvider
 
 
-def get_selected_text():
-    """Try multiple clipboard/selection tools in priority order."""
+def main():
+    # Try multiple clipboard/selection tools to get selected text
     methods = [
-        ['xsel', '-p', '-o'],
-        ['xsel', '-b', '-o'],
+        ['xsel', '-p', '-o'],           # xsel primary
+        ['xsel', '-b', '-o'],           # xsel clipboard
         ['xclip', '-selection', 'primary', '-o'],
         ['xclip', '-selection', 'clipboard', '-o'],
-        ['wl-paste', '-p'],
-        ['wl-paste'],
+        ['wl-paste', '-p'],             # Wayland primary
+        ['wl-paste'],                   # Wayland clipboard
     ]
     
+    text = None
     for command in methods:
         text = run_clipboard_command(command)
         if text:
-            return text
-    
-    return None
-
-
-def main():
-    # Get selected text
-    text = get_selected_text()
+            break
     
     if not text or not text.strip():
         print("No selected text found. Make sure xsel, xclip, or wl-paste is installed.", 
@@ -68,7 +57,6 @@ def main():
     # Run GTK app with selected text
     app = SpeakingApp(text.strip(), tts_provider)
     app.run(None)
-    
     return 0
 
 

@@ -12,8 +12,7 @@ class TTSProvider(ABC):
     """Abstract base class for TTS providers."""
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """
-        Initialize the TTS provider with optional configuration.
+        """Initialize the TTS provider with optional configuration.
         
         Args:
             config: Provider-specific configuration dictionary
@@ -22,8 +21,7 @@ class TTSProvider(ABC):
     
     @abstractmethod
     def speak(self, text: str) -> None:
-        """
-        Speak the given text. May be non-blocking depending on implementation.
+        """Speak the given text. May be non-blocking depending on implementation.
         
         Args:
             text: The text to speak
@@ -34,8 +32,7 @@ class TTSProvider(ABC):
         pass
     
     def pause(self) -> None:
-        """
-        Pause the current speech playback.
+        """Pause the current speech playback.
         
         Raises:
             TTSError: If pause operation fails
@@ -43,8 +40,7 @@ class TTSProvider(ABC):
         pass
     
     def resume(self) -> None:
-        """
-        Resume paused speech playback.
+        """Resume paused speech playback.
         
         Raises:
             TTSError: If resume operation fails
@@ -52,8 +48,7 @@ class TTSProvider(ABC):
         pass
     
     def stop(self) -> None:
-        """
-        Stop the current speech playback.
+        """Stop the current speech playback.
         
         Raises:
             TTSError: If stop operation fails
@@ -61,8 +56,7 @@ class TTSProvider(ABC):
         pass
     
     def is_playing(self) -> bool:
-        """
-        Check if speech is currently playing.
+        """Check if speech is currently playing.
         
         Returns:
             bool: True if playing, False otherwise
@@ -70,8 +64,7 @@ class TTSProvider(ABC):
         return False
     
     def is_paused(self) -> bool:
-        """
-        Check if speech is currently paused.
+        """Check if speech is currently paused.
         
         Returns:
             bool: True if paused, False otherwise
@@ -79,8 +72,7 @@ class TTSProvider(ABC):
         return False
     
     def skip_forward(self, seconds: float) -> None:
-        """
-        Skip forward in the current speech playback.
+        """Skip forward in the current speech playback.
         
         Args:
             seconds: Number of seconds to skip forward
@@ -91,8 +83,7 @@ class TTSProvider(ABC):
         pass
     
     def skip_backward(self, seconds: float) -> None:
-        """
-        Skip backward in the current speech playback.
+        """Skip backward in the current speech playback.
         
         Args:
             seconds: Number of seconds to skip backward
@@ -103,8 +94,7 @@ class TTSProvider(ABC):
         pass
     
     def get_frequency_bands(self, num_bands: int = 10) -> list[float]:
-        """
-        Get frequency band amplitudes for audio visualization.
+        """Get frequency band amplitudes for audio visualization.
         
         Args:
             num_bands: Number of frequency bands to return
@@ -122,8 +112,7 @@ class TTSProvider(ABC):
         pass
     
     def validate_config(self) -> bool:
-        """
-        Validate that the provider is properly configured and available.
+        """Validate that the provider is properly configured and available.
         
         Returns:
             bool: True if provider is ready to use, False otherwise

@@ -95,8 +95,8 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         waveform_box.set_size_request(80, 32)
         
         # Create 10 wave bars with varying initial heights
-        self.wave_bars = []
         wave_heights = [8, 16, 24, 20, 12, 18, 14, 22, 10, 16]
+        self.wave_bars = []
         for height in wave_heights:
             bar = Gtk.Box()
             bar.add_css_class("wave-bar")
@@ -150,8 +150,8 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         """Use the configured TTS provider to speak the text."""
         try:
             self.tts_provider.speak(self.text)
-            # Give playback time to start
-            time.sleep(0.2)
+            time.sleep(0.2)  # Brief delay for playback initialization
+            
             # Wait for playback to complete
             while self.tts_provider.is_playing() or self.tts_provider.is_paused():
                 time.sleep(0.1)
@@ -159,32 +159,31 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             print(f"TTS Error: {e}", file=sys.stderr)
         except Exception as e:
             print(f"Error during speech: {e}", file=sys.stderr)
-        # Don't close here - let update_status handle it
+        # Window closing is handled by update_status when playback finishes
     
     def _handle_tts_action(self, action_name: str, action_func):
-        """Common error handling for TTS actions."""
+        """Execute TTS action with error handling."""
         try:
             action_func()
         except TTSError as e:
             print(f"Error {action_name}: {e}", file=sys.stderr)
     
     def on_pause_clicked(self, button):
-        """Handle pause/resume button click (toggle)."""
-        if self.tts_provider.is_paused():
-            self._handle_tts_action("resuming", self.tts_provider.resume)
-        else:
-            self._handle_tts_action("pausing", self.tts_provider.pause)
+        """Toggle pause/resume."""
+        action = self.tts_provider.resume if self.tts_provider.is_paused() else self.tts_provider.pause
+        action_name = "resuming" if self.tts_provider.is_paused() else "pausing"
+        self._handle_tts_action(action_name, action)
     
     def on_skip_backward_clicked(self, button):
-        """Handle skip backward button click."""
+        """Skip backward 5 seconds."""
         self._handle_tts_action("skipping backward", lambda: self.tts_provider.skip_backward(5.0))
     
     def on_skip_forward_clicked(self, button):
-        """Handle skip forward button click."""
+        """Skip forward 5 seconds."""
         self._handle_tts_action("skipping forward", lambda: self.tts_provider.skip_forward(5.0))
     
     def on_stop_clicked(self, button):
-        """Handle stop button click."""
+        """Stop playback and close window."""
         self._handle_tts_action("stopping", self.tts_provider.stop)
         self.close()
     
@@ -199,59 +198,44 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         
         if is_playing:
             self.pause_button.set_label("⏸")
-            return True
-        
-        if is_paused:
+        elif is_paused:
             self.pause_button.set_label("▶")
-            return True
-        
-        # Not playing and not paused
-        if self._playback_started:
+        elif self._playback_started:
             # Playback has started and now finished - close window
             GLib.idle_add(self.close_window)
             return False  # Stop timer
         
-        # Playback hasn't started yet - keep waiting
+        # Continue timer if playing, paused, or waiting to start
         return True
     
     def animate_waveform(self):
         """Animate the waveform bars using real-time frequency analysis."""
-        # Only stop animation if playback has finished
+        # Stop animation if playback has finished
         if self._playback_started and not self.tts_provider.is_playing() and not self.tts_provider.is_paused():
-            # Playback finished - stop animation
             return False
         
+        min_height = 8
+        max_height = 24
+        
         # Try real-time frequency analysis when playing
-        use_sine_fallback = True
         if self.tts_provider.is_playing():
-            # Get frequency bands from audio (WinAmp-style spectrum analyzer!)
             bands = self.tts_provider.get_frequency_bands(10)
             
-            # Check if provider actually supports frequency analysis
-            # (if all bands are zero or very low, fall back to sine wave)
-            if max(bands) > 0.01:  # Has real audio data
-                use_sine_fallback = False
-                for i, (bar, base_height) in enumerate(self.wave_bars):
-                    # Map frequency band to bar height (8-24 px range)
-                    min_height = 8
-                    max_height = 24
+            # Use frequency data if available (provider supports it and has real audio data)
+            if max(bands) > 0.01:
+                for i, (bar, _) in enumerate(self.wave_bars):
                     animated_height = int(min_height + bands[i] * (max_height - min_height))
                     bar.set_size_request(3, animated_height)
+                return True
         
-        # Fall back to sine wave animation if:
-        # - Not playing/paused, OR
-        # - Provider doesn't support frequency analysis
-        if use_sine_fallback:
-            self._wave_offset = (self._wave_offset + 1) % 100
-            
-            for i, (bar, base_height) in enumerate(self.wave_bars):
-                # Calculate animated height using sine wave
-                phase = (self._wave_offset + i * 10) / 100.0 * 2 * math.pi
-                wave_factor = (math.sin(phase) + 1) / 2  # 0 to 1
-                min_height = 8
-                max_height = 24
-                animated_height = int(min_height + wave_factor * (max_height - min_height))
-                bar.set_size_request(3, animated_height)
+        # Fall back to sine wave animation (when not playing or no frequency data)
+        self._wave_offset = (self._wave_offset + 1) % 100
+        
+        for i, (bar, _) in enumerate(self.wave_bars):
+            phase = (self._wave_offset + i * 10) / 100.0 * 2 * math.pi
+            wave_factor = (math.sin(phase) + 1) / 2  # Normalize to 0-1
+            animated_height = int(min_height + wave_factor * (max_height - min_height))
+            bar.set_size_request(3, animated_height)
         
         return True
     
@@ -261,7 +245,7 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             if self.tts_provider.is_playing() or self.tts_provider.is_paused():
                 self.tts_provider.stop()
         except Exception:
-            pass  # Ignore errors when stopping
+            pass  # Ignore errors during cleanup
     
     def on_close_request(self, window):
         """Handle window close request."""
@@ -269,10 +253,10 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         return False  # Allow window to close
     
     def close_window(self):
-        """Close the window (called from main thread)."""
+        """Close the window (called from main thread via GLib.idle_add)."""
         self._stop_audio_if_playing()
         self.close()
-        return False
+        return False  # Return False to ensure GLib.idle_add doesn't repeat
 
 
 class SpeakingApp(Gtk.Application):
@@ -283,30 +267,22 @@ class SpeakingApp(Gtk.Application):
         self.window = None
     
     def do_activate(self):
-        """Create and show the window."""
-        if self.window:
-            return
-        self.window = SpeakingWindow(self, self.text, self.tts_provider)
-        self.window.present()
+        """Create and show the window (only once)."""
+        if not self.window:
+            self.window = SpeakingWindow(self, self.text, self.tts_provider)
+            self.window.present()
 
 
 def main():
-    if len(sys.argv) > 1:
-        # Text provided as argument
-        text = " ".join(sys.argv[1:])
-    else:
-        # Read from stdin
-        text = sys.stdin.read()
+    # Text provided as argument or read from stdin
+    text = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else sys.stdin.read()
     
     if not text.strip():
         print("No text to speak", file=sys.stderr)
         sys.exit(1)
     
-    # Create TTS provider (currently only Piper)
-    # In the future, you can add logic to select different providers
+    # Create and validate TTS provider (currently only Piper)
     tts_provider = PiperTTSProvider()
-    
-    # Validate provider
     if not tts_provider.validate_config():
         print(f"TTS provider '{tts_provider.name}' is not properly configured", 
               file=sys.stderr)
