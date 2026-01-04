@@ -6,7 +6,20 @@ This script can be called directly or via keybindings.
 
 import sys
 import subprocess
+import os
 from pathlib import Path
+
+# Prefer Wayland backend for proper transparency/styling
+# Must be set BEFORE importing any GTK modules
+# On Wayland systems: CSS transparency works correctly
+# On X11 systems: Transparency may not work, but app will still function
+if os.environ.get('WAYLAND_DISPLAY'):
+    # Wayland is available - use it for correct styling
+    os.environ['GDK_BACKEND'] = 'wayland'
+elif os.environ.get('DISPLAY') and not os.environ.get('GDK_BACKEND'):
+    # Only X11 available - warn about potential styling issues
+    print("Warning: Running on X11. Window transparency may not work correctly.", 
+          file=sys.stderr)
 
 # Add script directory to Python path for imports
 SCRIPT_DIR = Path(__file__).parent.resolve()
