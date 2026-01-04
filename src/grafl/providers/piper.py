@@ -9,7 +9,7 @@ import threading
 import numpy as np
 import sounddevice as sd
 from typing import Optional, Dict, Any
-from tts_interface import TTSProvider, TTSError
+from grafl.providers.base import TTSProvider, TTSError
 
 
 class PiperTTSProvider(TTSProvider):
@@ -18,9 +18,9 @@ class PiperTTSProvider(TTSProvider):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(config)
         
-        # Default configuration
-        script_dir = Path(__file__).parent.resolve()
-        self.script_dir = Path(self.config.get('script_dir', script_dir))
+        # Default configuration - find project root (3 levels up from this file)
+        project_root = Path(__file__).parent.parent.parent.parent.resolve()
+        self.script_dir = Path(self.config.get('script_dir', project_root))
         self.piper_bin = Path(self.config.get('piper_bin', 
                                                self.script_dir / "venv" / "bin" / "piper"))
         self.model_path = Path(self.config.get('model_path',

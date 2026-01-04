@@ -13,8 +13,8 @@ import time
 import math
 
 # Import TTS interface
-from tts_interface import TTSProvider, TTSError
-from tts_piper import PiperTTSProvider
+from grafl.providers.base import TTSProvider, TTSError
+from grafl.providers.piper import PiperTTSProvider
 
 class SpeakingWindow(Gtk.ApplicationWindow):
     def __init__(self, app, text, tts_provider: TTSProvider):

@@ -37,10 +37,12 @@ flowchart TB
 
 | File | Purpose |
 |------|---------|
-| `tts_interface.py` | Abstract base class defining the TTS contract |
-| `tts_piper.py` | Piper implementation with sounddevice playback |
-| `speak_with_window.py` | GTK4 UI with controls |
-| `speak-selection` | Entry point script |
+| `grafl.py` | Main entry point with CLI commands |
+| `src/grafl/cli.py` | Command-line interface logic |
+| `src/grafl/providers/base.py` | Abstract base class defining the TTS contract |
+| `src/grafl/providers/piper.py` | Piper implementation with sounddevice playback |
+| `src/grafl/ui/window.py` | GTK4 UI with controls |
+| `src/grafl/utils/clipboard.py` | Clipboard utility for getting selected text |
 
 ## Data Flow
 
