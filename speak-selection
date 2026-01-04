@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Script to speak selected text using piper TTS with GTK4 window
+# This script can be called from any directory
+
+SCRIPT_DIR="/home/gabriel/git_projects/grafl"
+GET_TEXT_SCRIPT="${SCRIPT_DIR}/get_selected_text.py"
+SPEAK_WITH_WINDOW="${SCRIPT_DIR}/speak_with_window.py"
+
+# Run the pipeline with GTK window
+"${GET_TEXT_SCRIPT}" | "${SPEAK_WITH_WINDOW}"
+
