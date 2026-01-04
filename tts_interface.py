@@ -23,7 +23,7 @@ class TTSProvider(ABC):
     @abstractmethod
     def speak(self, text: str) -> None:
         """
-        Speak the given text. Blocks until speech is complete.
+        Speak the given text. May be non-blocking depending on implementation.
         
         Args:
             text: The text to speak
@@ -32,6 +32,51 @@ class TTSProvider(ABC):
             TTSError: If speech fails
         """
         pass
+    
+    def pause(self) -> None:
+        """
+        Pause the current speech playback.
+        
+        Raises:
+            TTSError: If pause operation fails
+        """
+        pass
+    
+    def resume(self) -> None:
+        """
+        Resume paused speech playback.
+        
+        Raises:
+            TTSError: If resume operation fails
+        """
+        pass
+    
+    def stop(self) -> None:
+        """
+        Stop the current speech playback.
+        
+        Raises:
+            TTSError: If stop operation fails
+        """
+        pass
+    
+    def is_playing(self) -> bool:
+        """
+        Check if speech is currently playing.
+        
+        Returns:
+            bool: True if playing, False otherwise
+        """
+        return False
+    
+    def is_paused(self) -> bool:
+        """
+        Check if speech is currently paused.
+        
+        Returns:
+            bool: True if paused, False otherwise
+        """
+        return False
     
     @property
     @abstractmethod

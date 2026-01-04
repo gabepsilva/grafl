@@ -19,10 +19,13 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         super().__init__(application=app)
         self.text = text
         self.tts_provider = tts_provider
+        self._playback_started = False
+        
+        # Connect close handler
+        self.connect("close-request", self.on_close_request)
         
         # Window configuration - minimal floating style
         self.set_title("Speaking...")
-        self.set_default_size(250, 80)
         self.set_resizable(False)
         
         # Make it borderless and float on top
@@ -39,6 +42,16 @@ class SpeakingWindow(Gtk.ApplicationWindow):
                 color: white;
                 font-size: 16px;
             }
+            button {
+                background-color: rgba(255, 255, 255, 0.2);
+                color: white;
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 6px;
+                padding: 8px 16px;
+            }
+            button:hover {
+                background-color: rgba(255, 255, 255, 0.3);
+            }
         """)
         
         display = Gdk.Display.get_default()
@@ -48,10 +61,10 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
         
-        # Create UI - simple centered label
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        box.set_margin_top(25)
-        box.set_margin_bottom(25)
+        # Create UI - centered label and control buttons
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.set_margin_top(20)
+        box.set_margin_bottom(20)
         box.set_margin_start(30)
         box.set_margin_end(30)
         box.set_halign(Gtk.Align.CENTER)
@@ -63,7 +76,34 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         self.label.set_halign(Gtk.Align.CENTER)
         box.append(self.label)
         
+        # Control buttons
+        button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        button_box.set_halign(Gtk.Align.CENTER)
+        
+        # Pause button
+        self.pause_button = Gtk.Button(label="⏸ Pause")
+        self.pause_button.connect("clicked", self.on_pause_clicked)
+        button_box.append(self.pause_button)
+        
+        # Resume button (initially hidden)
+        self.resume_button = Gtk.Button(label="▶ Resume")
+        self.resume_button.connect("clicked", self.on_resume_clicked)
+        self.resume_button.set_visible(False)
+        button_box.append(self.resume_button)
+        
+        # Stop button
+        self.stop_button = Gtk.Button(label="⏹ Stop")
+        self.stop_button.connect("clicked", self.on_stop_clicked)
+        button_box.append(self.stop_button)
+        
+        box.append(button_box)
         self.set_child(box)
+        
+        # Update window size for buttons
+        self.set_default_size(300, 120)
+        
+        # Start status update timer
+        GLib.timeout_add(100, self.update_status)
         
         # Start speaking in a separate thread
         threading.Thread(target=self.speak_text, daemon=True).start()
@@ -72,15 +112,87 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         """Use the configured TTS provider to speak the text."""
         try:
             self.tts_provider.speak(self.text)
+            # Give playback time to start
+            import time
+            time.sleep(0.2)
+            # Wait for playback to complete
+            while self.tts_provider.is_playing() or self.tts_provider.is_paused():
+                time.sleep(0.1)
         except TTSError as e:
             print(f"TTS Error: {e}", file=sys.stderr)
         except Exception as e:
             print(f"Error during speech: {e}", file=sys.stderr)
+        # Don't close here - let update_status handle it
+    
+    def on_pause_clicked(self, button):
+        """Handle pause button click."""
+        try:
+            self.tts_provider.pause()
+        except TTSError as e:
+            print(f"Error pausing: {e}", file=sys.stderr)
+    
+    def on_resume_clicked(self, button):
+        """Handle resume button click."""
+        try:
+            self.tts_provider.resume()
+        except TTSError as e:
+            print(f"Error resuming: {e}", file=sys.stderr)
+    
+    def on_stop_clicked(self, button):
+        """Handle stop button click."""
+        try:
+            self.tts_provider.stop()
+        except TTSError as e:
+            print(f"Error stopping: {e}", file=sys.stderr)
         finally:
-            GLib.idle_add(self.close_window)
+            self.close()
+    
+    def update_status(self):
+        """Update UI based on playback status."""
+        is_playing = self.tts_provider.is_playing()
+        is_paused = self.tts_provider.is_paused()
+        
+        # Track if playback has started
+        if is_playing or is_paused:
+            self._playback_started = True
+        
+        if is_playing:
+            self.label.set_markup("<span size='large'>🔊 Speaking...</span>")
+            self.pause_button.set_visible(True)
+            self.resume_button.set_visible(False)
+        elif is_paused:
+            self.label.set_markup("<span size='large'>⏸ Paused</span>")
+            self.pause_button.set_visible(False)
+            self.resume_button.set_visible(True)
+        else:
+            # Not playing and not paused
+            if self._playback_started:
+                # Playback has started and now finished - close window
+                GLib.idle_add(self.close_window)
+                return False  # Stop timer
+            # Playback hasn't started yet - keep waiting
+            self.label.set_markup("<span size='large'>🔊 Preparing...</span>")
+        
+        return True  # Continue timer
+    
+    def on_close_request(self, window):
+        """Handle window close request."""
+        # Stop audio if still playing
+        try:
+            if self.tts_provider.is_playing() or self.tts_provider.is_paused():
+                self.tts_provider.stop()
+        except Exception:
+            pass
+        return False  # Allow window to close
     
     def close_window(self):
         """Close the window (called from main thread)."""
+        # Stop audio if still playing
+        try:
+            if self.tts_provider.is_playing() or self.tts_provider.is_paused():
+                self.tts_provider.stop()
+        except Exception:
+            pass
         self.close()
         return False
 

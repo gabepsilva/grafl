@@ -5,7 +5,8 @@
 SCRIPT_DIR="/home/gabriel/git_projects/grafl"
 GET_TEXT_SCRIPT="${SCRIPT_DIR}/get_selected_text.py"
 SPEAK_WITH_WINDOW="${SCRIPT_DIR}/speak_with_window.py"
+PYTHON="${SCRIPT_DIR}/venv/bin/python3"
 
-# Run the pipeline with GTK window
-"${GET_TEXT_SCRIPT}" | "${SPEAK_WITH_WINDOW}"
+# Run the pipeline with GTK window using venv Python
+"${PYTHON}" "${GET_TEXT_SCRIPT}" | "${PYTHON}" "${SPEAK_WITH_WINDOW}"
 

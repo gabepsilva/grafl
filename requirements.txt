@@ -1,4 +1,6 @@
 piper-tts
 PyGObject
 pycairo
+sounddevice
+numpy
 
