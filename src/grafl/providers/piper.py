@@ -4,7 +4,6 @@ Piper TTS provider implementation.
 """
 
 from pathlib import Path
-import os
 import subprocess
 import threading
 import numpy as np
@@ -326,4 +325,11 @@ class PiperTTSProvider(TTSProvider):
             bands = [(b / max_val) ** 0.7 for b in bands]
         
         return bands
+    
+    def get_progress(self) -> float:
+        """Get playback progress as a value between 0.0 and 1.0."""
+        with self._lock:
+            if self._audio_data is None or len(self._audio_data) == 0:
+                return 0.0
+            return min(1.0, self._playback_position / len(self._audio_data))
 

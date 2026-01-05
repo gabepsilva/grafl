@@ -105,6 +105,15 @@ class TTSProvider(ABC):
         """
         return [0.0] * num_bands
     
+    def get_progress(self) -> float:
+        """Get playback progress as a value between 0.0 and 1.0.
+        
+        Returns:
+            float: Progress value (0.0 = start, 1.0 = complete).
+            Returns 0.0 if not supported or no audio data.
+        """
+        return 0.0
+    
     @property
     @abstractmethod
     def name(self) -> str:

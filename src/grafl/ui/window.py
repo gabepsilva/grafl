@@ -23,6 +23,7 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         self.tts_provider = tts_provider
         self._playback_started = False
         self._wave_offset = 0  # For waveform animation
+        self._current_progress = 0.0  # Current displayed progress (for smoothing)
         
         # Connect close handler
         self.connect("close-request", self.on_close_request)
@@ -51,6 +52,18 @@ class SpeakingWindow(Gtk.ApplicationWindow):
                 border-radius: 2px;
                 min-width: 3px;
             }
+            progressbar {
+                min-height: 1px;
+                background-color: rgba(255, 255, 255, 0.2);
+            }
+            progressbar trough {
+                min-height: 1px;
+                background-color: rgba(255, 255, 255, 0.2);
+            }
+            progressbar progress {
+                min-height: 1px;
+                background-color: rgba(255, 255, 255, 0.8);
+            }
             button {
                 background-color: rgba(255, 255, 255, 0.15);
                 color: white;
@@ -73,6 +86,9 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             css_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
+        
+        # Create main vertical container
+        main_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         
         # Create UI - compact horizontal bar layout
         main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
@@ -132,7 +148,19 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         controls_box.append(self.stop_button)
         
         main_box.append(controls_box)
-        self.set_child(main_box)
+        main_container.append(main_box)
+        
+        # Progress bar (1 pixel tall) - aligned with logo start and button end
+        self.progress_bar = Gtk.ProgressBar()
+        self.progress_bar.set_size_request(1, 0)  # 1 pixel height
+        self.progress_bar.set_show_text(False)  # No text on progress bar
+        self.progress_bar.set_margin_start(39)  # Align with logo start
+        self.progress_bar.set_margin_end(39)  # Align with button end
+        self.progress_bar.set_margin_top(-5)  # Move up a bit from bottom
+        self.progress_bar.set_margin_bottom(5)  # Small bottom margin
+        main_container.append(self.progress_bar)
+        
+        self.set_child(main_container)
         
         # Compact window size for bar design
         self.set_default_size(380, 60)
@@ -142,6 +170,9 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         
         # Start waveform animation timer
         GLib.timeout_add(75, self.animate_waveform)
+        
+        # Start smooth progress bar update timer (30fps for smooth animation)
+        GLib.timeout_add(33, self.update_progress_smooth)
         
         # Start speaking in a separate thread
         threading.Thread(target=self.speak_text, daemon=True).start()
@@ -192,7 +223,6 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         is_playing = self.tts_provider.is_playing()
         is_paused = self.tts_provider.is_paused()
         
-        # Track if playback has started
         if is_playing or is_paused:
             self._playback_started = True
         
@@ -201,11 +231,24 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         elif is_paused:
             self.pause_button.set_label("▶")
         elif self._playback_started:
-            # Playback has started and now finished - close window
+            # Playback finished - close window
             GLib.idle_add(self.close_window)
-            return False  # Stop timer
+            return False
         
-        # Continue timer if playing, paused, or waiting to start
+        return True
+    
+    def update_progress_smooth(self):
+        """Update progress bar smoothly with interpolation."""
+        target_progress = self.tts_provider.get_progress()
+        
+        # Smooth interpolation (0.15 factor balances smoothness vs responsiveness)
+        self._current_progress += (target_progress - self._current_progress) * 0.15
+        self.progress_bar.set_fraction(self._current_progress)
+        
+        # Stop timer when playback is complete
+        if self._playback_started and not self.tts_provider.is_playing() and not self.tts_provider.is_paused():
+            return False
+        
         return True
     
     def animate_waveform(self):
