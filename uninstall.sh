@@ -399,9 +399,6 @@ main() {
         verify_removal
         echo ""
         success "grafl has been completely uninstalled"
-        echo ""
-        info "Note: If you added ~/.local/bin to your PATH, you may want to remove that line from your shell configuration."
-        echo ""
     fi
 }
 
