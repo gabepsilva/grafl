@@ -152,12 +152,6 @@ clone_repo() {
             exit 1
         }
         
-        # Fetch all branches to ensure we have the target branch
-        git fetch origin || {
-            error "Failed to fetch from origin"
-            exit 1
-        }
-        
         # Check if branch exists remotely
         if ! git ls-remote --heads origin "$GRAFL_BRANCH" | grep -q "$GRAFL_BRANCH"; then
             error "Branch '$GRAFL_BRANCH' does not exist in remote repository"
@@ -166,26 +160,31 @@ clone_repo() {
             exit 1
         fi
         
+        # Fetch the specific branch to ensure we have it
+        git fetch origin "$GRAFL_BRANCH" || {
+            error "Failed to fetch branch '$GRAFL_BRANCH' from origin"
+            exit 1
+        }
+        
         # Switch to the target branch
         if git show-ref --verify --quiet refs/heads/"$GRAFL_BRANCH"; then
-            # Local branch exists
+            # Local branch exists, checkout and update
             git checkout "$GRAFL_BRANCH" || {
                 error "Failed to checkout local branch '$GRAFL_BRANCH'"
                 exit 1
             }
+            # Reset to match remote (in case of divergence)
+            git reset --hard "origin/$GRAFL_BRANCH" || {
+                error "Failed to update branch '$GRAFL_BRANCH'"
+                exit 1
+            }
         else
-            # Create tracking branch
-            git checkout -b "$GRAFL_BRANCH" "origin/$GRAFL_BRANCH" || {
-                error "Failed to checkout branch '$GRAFL_BRANCH'"
+            # Create tracking branch from remote
+            git checkout -b "$GRAFL_BRANCH" --track "origin/$GRAFL_BRANCH" || {
+                error "Failed to create tracking branch '$GRAFL_BRANCH'"
                 exit 1
             }
         fi
-        
-        # Pull latest changes
-        git pull origin "$GRAFL_BRANCH" || {
-            error "Failed to pull latest changes"
-            exit 1
-        }
     else
         git clone --branch "$GRAFL_BRANCH" --depth 1 "$GRAFL_REPO" "$GRAFL_HOME/repo" || {
             error "Failed to clone repository"
