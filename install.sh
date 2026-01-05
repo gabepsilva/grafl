@@ -17,7 +17,7 @@ GRAFL_BIN="$HOME/.local/bin/grafl"
 GRAFL_VENV="$GRAFL_HOME/venv"
 GRAFL_MODELS="$GRAFL_HOME/models"
 GRAFL_REPO="${GRAFL_REPO:-https://github.com/gabepsilva/grafl.git}"
-GRAFL_BRANCH="${GRAFL_BRANCH:-master}"
+GRAFL_BRANCH="${GRAFL_BRANCH:-install-test}"
 DOWNLOAD_MODELS="${DOWNLOAD_MODELS:-}"
 
 # Functions
@@ -157,6 +157,15 @@ clone_repo() {
             exit 1
         }
     fi
+    
+    # Verify setup.py exists (required for pip install -e)
+    if [ ! -f "$GRAFL_HOME/repo/setup.py" ]; then
+        error "setup.py not found in cloned repository"
+        error "This usually means the branch '$GRAFL_BRANCH' doesn't have setup.py"
+        error "Try installing with: GRAFL_BRANCH=install-test $0"
+        exit 1
+    fi
+    
     success "Repository cloned/updated"
 }
 

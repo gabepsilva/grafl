@@ -36,18 +36,32 @@ All Python dependencies are automatically installed into an isolated virtual env
 
 ### Quick Install (Recommended)
 
+> **Note:** Currently using `install-test` branch as default until the installer is stable. Once stable, we'll default to `master` with the option to use other branches.
+
 Install grafl with a single command:
 
 ```bash
-curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/master/install.sh | sh
+curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/refs/heads/install-test/install.sh | sh
 ```
 
 Or if you prefer to review the script first:
 
 ```bash
-curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/master/install.sh -o install.sh
+curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/refs/heads/install-test/install.sh -o install.sh
 chmod +x install.sh
 ./install.sh
+```
+
+Install from a different branch:
+
+```bash
+# Using environment variable
+GRAFL_BRANCH=master curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/refs/heads/install-test/install.sh | sh
+
+# Using command-line argument (after downloading script)
+curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/refs/heads/install-test/install.sh -o install.sh
+chmod +x install.sh
+./install.sh --branch master
 ```
 
 ### Installation Options
@@ -62,7 +76,10 @@ chmod +x install.sh
 # Skip voice model download
 ./install.sh --no-models
 
-# Use custom repository
+# Install from specific branch
+./install.sh --branch develop
+
+# Use custom repository and branch
 ./install.sh --repo https://github.com/gabepsilva/grafl.git --branch develop
 ```
 
