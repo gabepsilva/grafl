@@ -229,6 +229,9 @@ if [ ! -d "$GRAFL_VENV" ]; then
     exit 1
 fi
 
+# Change to home directory to avoid conflicts with development files
+cd "$HOME" || cd /
+
 # Activate venv and run grafl
 source "$GRAFL_VENV/bin/activate"
 python -m grafl.cli "$@"
