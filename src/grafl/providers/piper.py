@@ -4,6 +4,7 @@ Piper TTS provider implementation.
 """
 
 from pathlib import Path
+import os
 import subprocess
 import threading
 import numpy as np
@@ -21,10 +22,49 @@ class PiperTTSProvider(TTSProvider):
         # Default configuration - find project root (3 levels up from this file)
         project_root = Path(__file__).parent.parent.parent.parent.resolve()
         self.script_dir = Path(self.config.get('script_dir', project_root))
-        self.piper_bin = Path(self.config.get('piper_bin', 
-                                               self.script_dir / "venv" / "bin" / "piper"))
-        self.model_path = Path(self.config.get('model_path',
-                                                self.script_dir / "en_US-lessac-medium"))
+        
+        # Piper binary location - check multiple locations
+        if 'piper_bin' in self.config:
+            self.piper_bin = Path(self.config['piper_bin'])
+        else:
+            import shutil
+            # Check locations in order:
+            # 1. User installation venv
+            user_venv_piper = Path.home() / ".local" / "share" / "grafl" / "venv" / "bin" / "piper"
+            # 2. Development venv (project root)
+            dev_venv_piper = self.script_dir / "venv" / "bin" / "piper"
+            # 3. System PATH
+            system_piper = shutil.which('piper')
+            
+            if user_venv_piper.exists():
+                self.piper_bin = user_venv_piper
+            elif dev_venv_piper.exists():
+                self.piper_bin = dev_venv_piper
+            elif system_piper:
+                self.piper_bin = Path(system_piper)
+            else:
+                # Fallback to user venv location (will fail validation if not found)
+                self.piper_bin = user_venv_piper
+        
+        # Model path - check multiple locations
+        if 'model_path' in self.config:
+            self.model_path = Path(self.config['model_path'])
+        else:
+            # Try locations in order:
+            # 1. User installation directory
+            user_models = Path.home() / ".local" / "share" / "grafl" / "models" / "en_US-lessac-medium"
+            # 2. Project root (development)
+            project_models = self.script_dir / "en_US-lessac-medium"
+            
+            # Check which location has the model
+            if user_models.with_suffix('.onnx').exists():
+                self.model_path = user_models
+            elif project_models.with_suffix('.onnx').exists():
+                self.model_path = project_models
+            else:
+                # Default to user installation location (will fail validation if not found)
+                self.model_path = user_models
+        
         self.sample_rate = self.config.get('sample_rate', 22050)
         
         # Playback state
