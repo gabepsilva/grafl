@@ -324,15 +324,20 @@ verify_installation() {
         return 1
     fi
     
-    # Test if grafl can be imported
-    source "$GRAFL_VENV/bin/activate"
-    if python -c "import grafl" 2>/dev/null; then
+    # Test if grafl command works (better than just testing import)
+    # Change to home directory to avoid conflicts with development files
+    local old_dir
+    old_dir=$(pwd)
+    cd "$HOME" || cd /
+    
+    # Test the actual command instead of just import
+    if "$GRAFL_BIN" help >/dev/null 2>&1; then
         success "Installation verified"
-        deactivate
+        cd "$old_dir" 2>/dev/null || true
         return 0
     else
-        error "Failed to import grafl module"
-        deactivate
+        error "Failed to verify installation - grafl command did not work"
+        cd "$old_dir" 2>/dev/null || true
         return 1
     fi
 }
