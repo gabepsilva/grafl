@@ -129,37 +129,64 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             button:hover {
                 background-color: rgba(255, 255, 255, 0.25);
             }
-            .menu-button {
-                background-color: transparent;
-                border-radius: 4px;
-                min-width: 28px;
-                min-height: 28px;
-                padding: 2px;
-                font-size: 16px;
+            .play-stop-button {
+                font-size: 20px;
             }
-            .menu-button:hover {
-                background-color: rgba(255, 255, 255, 0.15);
+            .menu-label {
+                cursor: pointer;
+            }
+            .menu-icon {
+                font-size: 18px;
+                font-weight: 300;
+                color: rgba(255, 255, 255, 0.8);
+                line-height: 1;
+            }
+            .menu-icon:hover {
+                color: rgba(255, 255, 255, 1.0);
             }
             .menu-popover {
-                background-color: rgba(30, 30, 30, 0.95);
-                border: 1px solid rgba(255, 255, 255, 0.3);
+                background-color: rgba(20, 20, 20, 0.98);
+                border: 1px solid rgba(255, 255, 255, 0.25);
+                border-radius: 10px;
+                padding: 0;
+            }
+            .menu-section {
+                padding: 14px 18px;
+            }
+            .menu-section:not(:last-child) {
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            .menu-label {
+                color: rgba(255, 255, 255, 0.85);
+                font-size: 10px;
+                font-weight: 600;
+                letter-spacing: 0.8px;
+                text-transform: uppercase;
+                margin-bottom: 10px;
+                margin-top: 0;
+            }
+            .menu-dropdown {
+                background-color: rgba(255, 255, 255, 0.08);
+                color: rgba(255, 255, 255, 0.95);
+                border: 1px solid rgba(255, 255, 255, 0.15);
                 border-radius: 6px;
-                padding: 8px;
+                min-height: 36px;
+                padding: 0 12px;
             }
-            .menu-popover label {
-                color: white;
-                font-size: 12px;
-                margin-bottom: 4px;
+            .menu-dropdown:hover {
+                background-color: rgba(255, 255, 255, 0.12);
+                border-color: rgba(255, 255, 255, 0.25);
             }
-            .menu-popover dropdown {
-                background-color: rgba(255, 255, 255, 0.1);
-                color: white;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                border-radius: 4px;
-                min-height: 28px;
-            }
-            .menu-popover dropdown:hover {
+            .menu-dropdown:active {
                 background-color: rgba(255, 255, 255, 0.15);
+            }
+            .menu-dropdown button {
+                background-color: transparent;
+                border: none;
+                color: rgba(255, 255, 255, 0.95);
+            }
+            .menu-dropdown button:hover {
+                background-color: transparent;
             }
         """)
         
@@ -175,12 +202,12 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         
         # Create UI - compact horizontal bar layout
         main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
-        main_box.set_margin_top(12)
+        main_box.set_margin_top(8)
         main_box.set_margin_bottom(12)
         main_box.set_margin_start(20)
-        main_box.set_margin_end(20)
+        main_box.set_margin_end(12)
         main_box.set_halign(Gtk.Align.CENTER)
-        main_box.set_valign(Gtk.Align.CENTER)
+        main_box.set_valign(Gtk.Align.START)
         
         # Speaker icon
         icon_label = Gtk.Label(label="🔊")
@@ -222,53 +249,71 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         
         # Pause/Resume button (toggle)
         self.pause_button = Gtk.Button(label="⏸")
+        self.pause_button.add_css_class("play-stop-button")
         self.pause_button.connect("clicked", self.on_pause_clicked)
         controls_box.append(self.pause_button)
         
         # Stop button
         self.stop_button = Gtk.Button(label="⏹")
+        self.stop_button.add_css_class("play-stop-button")
         self.stop_button.connect("clicked", self.on_stop_clicked)
         controls_box.append(self.stop_button)
         
         main_box.append(controls_box)
         
-        # Hamburger menu button
-        self.menu_button = Gtk.Button(label="☰")
-        self.menu_button.add_css_class("menu-button")
+        # Settings menu label with wrench icon (clickable)
+        self.menu_label = Gtk.Label(label="🔧")
+        self.menu_label.add_css_class("menu-icon")
+        self.menu_label.add_css_class("menu-label")
+        # Position it more top-right
+        self.menu_label.set_margin_top(0)
+        self.menu_label.set_margin_end(-20)
+        self.menu_label.set_halign(Gtk.Align.END)
+        self.menu_label.set_valign(Gtk.Align.START)
+        
+        # Make label clickable
+        click_controller = Gtk.GestureClick()
+        click_controller.connect("pressed", self.on_menu_clicked)
+        self.menu_label.add_controller(click_controller)
         
         # Create popover for menu
         self.menu_popover = Gtk.Popover()
         self.menu_popover.add_css_class("menu-popover")
-        self.menu_popover.set_parent(self.menu_button)
+        self.menu_popover.set_parent(self.menu_label)
         
-        # Popover content
-        popover_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        popover_box.set_margin_top(4)
-        popover_box.set_margin_bottom(4)
-        popover_box.set_margin_start(4)
-        popover_box.set_margin_end(4)
+        # Popover content container
+        popover_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         
-        # Voice provider label
+        # Voice provider section
+        provider_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        provider_section.add_css_class("menu-section")
+        
         provider_label = Gtk.Label(label="Voice Provider")
+        provider_label.add_css_class("menu-label")
         provider_label.set_halign(Gtk.Align.START)
-        popover_box.append(provider_label)
+        provider_section.append(provider_label)
         
         # Provider dropdown
         provider_options = Gtk.StringList.new(["Piper", "AWS Polly"])
         self.provider_dropdown = Gtk.DropDown(model=provider_options)
+        self.provider_dropdown.add_css_class("menu-dropdown")
         
         # Set current provider selection
         current_provider = get_voice_provider()
         self.provider_dropdown.set_selected(0 if current_provider == "piper" else 1)
         
         self.provider_dropdown.connect("notify::selected", self.on_provider_changed)
-        popover_box.append(self.provider_dropdown)
+        provider_section.append(self.provider_dropdown)
+        popover_box.append(provider_section)
         
-        # Log level label
+        # Log level section
+        log_level_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        log_level_section.add_css_class("menu-section")
+        
         log_level_label = Gtk.Label(label="Log Level")
+        log_level_label.add_css_class("menu-label")
         log_level_label.set_halign(Gtk.Align.START)
-        log_level_label.set_margin_top(8)
-        popover_box.append(log_level_label)
+        log_level_section.append(log_level_label)
         
         # Log level dropdown with numeric levels
         log_level_options = Gtk.StringList.new([
@@ -279,6 +324,7 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             "50 - CRITICAL"
         ])
         self.log_level_dropdown = Gtk.DropDown(model=log_level_options)
+        self.log_level_dropdown.add_css_class("menu-dropdown")
         
         # Set current log level selection
         log_level_map = {"DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 4}
@@ -286,20 +332,20 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         self.log_level_dropdown.set_selected(log_level_map.get(current_log_level, 1))
         
         self.log_level_dropdown.connect("notify::selected", self.on_log_level_changed)
-        popover_box.append(self.log_level_dropdown)
+        log_level_section.append(self.log_level_dropdown)
+        popover_box.append(log_level_section)
         
         self.menu_popover.set_child(popover_box)
-        self.menu_button.connect("clicked", self.on_menu_clicked)
         
-        main_box.append(self.menu_button)
+        main_box.append(self.menu_label)
         main_container.append(main_box)
         
         # Progress bar (1 pixel tall) - aligned with logo start and button end
         self.progress_bar = Gtk.ProgressBar()
         self.progress_bar.set_size_request(1, 0)  # 1 pixel height
         self.progress_bar.set_show_text(False)  # No text on progress bar
-        self.progress_bar.set_margin_start(39)  # Align with logo start
-        self.progress_bar.set_margin_end(39)  # Align with button end
+        self.progress_bar.set_margin_start(27)  # Align with logo start
+        self.progress_bar.set_margin_end(49)  # Align with button end
         self.progress_bar.set_margin_top(-5)  # Move up a bit from bottom
         self.progress_bar.set_margin_bottom(5)  # Small bottom margin
         main_container.append(self.progress_bar)
@@ -362,7 +408,7 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         self._handle_tts_action("stopping", self.tts_provider.stop)
         self.close()
     
-    def on_menu_clicked(self, button):
+    def on_menu_clicked(self, gesture, n_press, x, y):
         """Toggle the menu popover."""
         if self.menu_popover.get_visible():
             self.menu_popover.popdown()
