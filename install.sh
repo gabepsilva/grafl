@@ -232,9 +232,12 @@ fi
 # Change to home directory to avoid conflicts with development files
 cd "$HOME" || cd /
 
-# Activate venv and run grafl
+# Activate venv
 source "$GRAFL_VENV/bin/activate"
-python -m grafl.cli "$@"
+
+# Use Python isolated mode to prevent importing from current directory
+# This avoids conflicts with development grafl.py files
+python -I -m grafl.cli "$@"
 EOF
     
     chmod +x "$GRAFL_BIN"
