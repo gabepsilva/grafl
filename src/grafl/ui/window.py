@@ -167,9 +167,9 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             }
             .menu-dropdown {
                 background-color: rgba(255, 255, 255, 0.08);
-                color: rgba(255, 255, 255, 0.95);
+                color: rgba(255, 0, 255, 0.95);
                 border: 1px solid rgba(255, 255, 255, 0.15);
-                border-radius: 6px;
+                border-radius: 5px;
                 min-height: 36px;
                 padding: 0 12px;
             }
@@ -181,9 +181,13 @@ class SpeakingWindow(Gtk.ApplicationWindow):
                 background-color: rgba(255, 255, 255, 0.15);
             }
             .menu-dropdown button {
-                background-color: transparent;
+                
                 border: none;
+                border-radius: 5px;
                 color: rgba(255, 255, 255, 0.95);
+                min-width: 100%;
+                min-height: 0;
+                padding: 0;
             }
             .menu-dropdown button:hover {
                 background-color: transparent;
