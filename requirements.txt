@@ -3,4 +3,5 @@ PyGObject
 pycairo
 sounddevice
 numpy
+boto3
 

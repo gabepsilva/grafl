@@ -8,19 +8,29 @@ import os
 from pathlib import Path
 
 from grafl.utils.clipboard import run_clipboard_command
-from grafl.ui.window import SpeakingApp, main as window_main
-from grafl.providers.piper import PiperTTSProvider
+from grafl.ui.window import SpeakingApp, main as window_main, create_validated_provider
+from grafl.utils.config import get_log_level
+from grafl.utils.logging import setup_logging, get_logger
 
 
 def speak_selection():
     """
-    Speak selected text using piper TTS with GTK4 window.
+    Speak selected text using TTS with GTK4 window.
     This can be called directly or via keybindings.
     """
+    # Initialize logging from config
+    log_level = get_log_level()
+    setup_logging(log_level)
+    logger = get_logger(__name__)
+    logger.info("Starting grafl speak-selection")
+    logger.debug(f"Log level: {log_level}")
+    
     # Prefer Wayland for proper CSS transparency (must be set before GTK imports)
     if os.environ.get('WAYLAND_DISPLAY'):
         os.environ['GDK_BACKEND'] = 'wayland'
+        logger.debug("Using Wayland backend")
     elif os.environ.get('DISPLAY') and not os.environ.get('GDK_BACKEND'):
+        logger.warning("Running on X11. Window transparency may not work correctly.")
         print("Warning: Running on X11. Window transparency may not work correctly.", 
               file=sys.stderr)
     
@@ -45,11 +55,10 @@ def speak_selection():
               file=sys.stderr)
         return 1
     
-    # Create and validate TTS provider
-    tts_provider = PiperTTSProvider()
-    if not tts_provider.validate_config():
-        print(f"TTS provider '{tts_provider.name}' is not properly configured", 
-              file=sys.stderr)
+    # Create and validate TTS provider (with automatic fallback)
+    tts_provider, error = create_validated_provider()
+    if error:
+        print(error, file=sys.stderr)
         return 1
     
     # Run GTK app with selected text

@@ -12,9 +12,60 @@ import threading
 import time
 import math
 
-# Import TTS interface
+# Import TTS interface and providers
 from grafl.providers.base import TTSProvider, TTSError
 from grafl.providers.piper import PiperTTSProvider
+from grafl.providers.polly import PollyTTSProvider
+from grafl.utils.config import get_voice_provider, set_voice_provider, get_log_level, set_log_level
+from grafl.utils.logging import setup_logging, reconfigure_logging, get_logger
+
+# Logger for this module
+logger = get_logger(__name__)
+
+
+def create_provider(provider_name: str) -> TTSProvider:
+    """Create a TTS provider instance by name.
+    
+    Args:
+        provider_name: Either "piper" or "polly"
+        
+    Returns:
+        TTSProvider instance
+    """
+    if provider_name == "polly":
+        return PollyTTSProvider()
+    return PiperTTSProvider()
+
+
+def create_validated_provider() -> tuple[TTSProvider, str | None]:
+    """Create and validate a TTS provider from config, with fallback to Piper.
+    
+    Returns:
+        Tuple of (provider, error_message).
+        If error_message is not None, provider creation failed entirely.
+    """
+    provider_name = get_voice_provider()
+    logger.debug(f"Voice provider from config: {provider_name}")
+    provider = create_provider(provider_name)
+    
+    if provider.validate_config():
+        return provider, None
+    
+    # Provider validation failed
+    if provider_name == "piper":
+        return provider, f"TTS provider '{provider.name}' is not properly configured"
+    
+    # Non-piper provider failed - show error and try fallback
+    error_msg = getattr(provider, 'get_config_error', lambda: "")()
+    if error_msg:
+        print(f"{provider.name} not available:\n{error_msg}", file=sys.stderr)
+    print("Falling back to Piper...", file=sys.stderr)
+    
+    fallback = PiperTTSProvider()
+    if fallback.validate_config():
+        return fallback, None
+    
+    return fallback, f"TTS provider '{fallback.name}' is not properly configured"
 
 class SpeakingWindow(Gtk.ApplicationWindow):
     def __init__(self, app, text, tts_provider: TTSProvider):
@@ -77,6 +128,38 @@ class SpeakingWindow(Gtk.ApplicationWindow):
             }
             button:hover {
                 background-color: rgba(255, 255, 255, 0.25);
+            }
+            .menu-button {
+                background-color: transparent;
+                border-radius: 4px;
+                min-width: 28px;
+                min-height: 28px;
+                padding: 2px;
+                font-size: 16px;
+            }
+            .menu-button:hover {
+                background-color: rgba(255, 255, 255, 0.15);
+            }
+            .menu-popover {
+                background-color: rgba(30, 30, 30, 0.95);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 6px;
+                padding: 8px;
+            }
+            .menu-popover label {
+                color: white;
+                font-size: 12px;
+                margin-bottom: 4px;
+            }
+            .menu-popover dropdown {
+                background-color: rgba(255, 255, 255, 0.1);
+                color: white;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 4px;
+                min-height: 28px;
+            }
+            .menu-popover dropdown:hover {
+                background-color: rgba(255, 255, 255, 0.15);
             }
         """)
         
@@ -148,6 +231,67 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         controls_box.append(self.stop_button)
         
         main_box.append(controls_box)
+        
+        # Hamburger menu button
+        self.menu_button = Gtk.Button(label="☰")
+        self.menu_button.add_css_class("menu-button")
+        
+        # Create popover for menu
+        self.menu_popover = Gtk.Popover()
+        self.menu_popover.add_css_class("menu-popover")
+        self.menu_popover.set_parent(self.menu_button)
+        
+        # Popover content
+        popover_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        popover_box.set_margin_top(4)
+        popover_box.set_margin_bottom(4)
+        popover_box.set_margin_start(4)
+        popover_box.set_margin_end(4)
+        
+        # Voice provider label
+        provider_label = Gtk.Label(label="Voice Provider")
+        provider_label.set_halign(Gtk.Align.START)
+        popover_box.append(provider_label)
+        
+        # Provider dropdown
+        provider_options = Gtk.StringList.new(["Piper", "AWS Polly"])
+        self.provider_dropdown = Gtk.DropDown(model=provider_options)
+        
+        # Set current provider selection
+        current_provider = get_voice_provider()
+        self.provider_dropdown.set_selected(0 if current_provider == "piper" else 1)
+        
+        self.provider_dropdown.connect("notify::selected", self.on_provider_changed)
+        popover_box.append(self.provider_dropdown)
+        
+        # Log level label
+        log_level_label = Gtk.Label(label="Log Level")
+        log_level_label.set_halign(Gtk.Align.START)
+        log_level_label.set_margin_top(8)
+        popover_box.append(log_level_label)
+        
+        # Log level dropdown with numeric levels
+        log_level_options = Gtk.StringList.new([
+            "10 - DEBUG",
+            "20 - INFO",
+            "30 - WARNING",
+            "40 - ERROR",
+            "50 - CRITICAL"
+        ])
+        self.log_level_dropdown = Gtk.DropDown(model=log_level_options)
+        
+        # Set current log level selection
+        log_level_map = {"DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 4}
+        current_log_level = get_log_level()
+        self.log_level_dropdown.set_selected(log_level_map.get(current_log_level, 1))
+        
+        self.log_level_dropdown.connect("notify::selected", self.on_log_level_changed)
+        popover_box.append(self.log_level_dropdown)
+        
+        self.menu_popover.set_child(popover_box)
+        self.menu_button.connect("clicked", self.on_menu_clicked)
+        
+        main_box.append(self.menu_button)
         main_container.append(main_box)
         
         # Progress bar (1 pixel tall) - aligned with logo start and button end
@@ -217,6 +361,76 @@ class SpeakingWindow(Gtk.ApplicationWindow):
         """Stop playback and close window."""
         self._handle_tts_action("stopping", self.tts_provider.stop)
         self.close()
+    
+    def on_menu_clicked(self, button):
+        """Toggle the menu popover."""
+        if self.menu_popover.get_visible():
+            self.menu_popover.popdown()
+        else:
+            self.menu_popover.popup()
+    
+    def on_provider_changed(self, dropdown, param):
+        """Handle provider selection change."""
+        selected = dropdown.get_selected()
+        new_provider = "piper" if selected == 0 else "polly"
+        current_provider = get_voice_provider()
+        
+        if new_provider != current_provider:
+            # Stop current playback first
+            self._stop_audio_if_playing()
+            
+            # Switch provider
+            self.tts_provider = create_provider(new_provider)
+            
+            if not self.tts_provider.validate_config():
+                # Get detailed error message if available
+                error_msg = getattr(self.tts_provider, 'get_config_error', lambda: "")()
+                if error_msg:
+                    print(f"Cannot use {self.tts_provider.name}:\n{error_msg}", file=sys.stderr)
+                else:
+                    print(f"TTS provider '{self.tts_provider.name}' is not properly configured", 
+                          file=sys.stderr)
+                
+                # Revert to previous provider (don't save invalid choice)
+                self.tts_provider = create_provider(current_provider)
+                dropdown.set_selected(0 if current_provider == "piper" else 1)
+                self.menu_popover.popdown()
+                return
+            
+            # Save preference only after successful validation
+            set_voice_provider(new_provider)
+            
+            # Reset playback state and restart
+            self._playback_started = False
+            self._current_progress = 0.0
+            self.progress_bar.set_fraction(0.0)
+            
+            # Restart speech with new provider
+            threading.Thread(target=self.speak_text, daemon=True).start()
+            
+            # Restart timers
+            GLib.timeout_add(100, self.update_status)
+            GLib.timeout_add(75, self.animate_waveform)
+            GLib.timeout_add(33, self.update_progress_smooth)
+        
+        # Close the popover
+        self.menu_popover.popdown()
+    
+    def on_log_level_changed(self, dropdown, param):
+        """Handle log level selection change."""
+        selected = dropdown.get_selected()
+        level_names = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        new_level = level_names[selected] if selected < len(level_names) else "INFO"
+        
+        current_level = get_log_level()
+        if new_level != current_level:
+            # Save and apply new log level
+            set_log_level(new_level)
+            reconfigure_logging(new_level)
+            logger.info(f"Log level changed to {new_level}")
+        
+        # Close the popover
+        self.menu_popover.popdown()
     
     def update_status(self):
         """Update UI based on playback status."""
@@ -317,18 +531,24 @@ class SpeakingApp(Gtk.Application):
 
 
 def main():
+    # Initialize logging from config
+    log_level = get_log_level()
+    setup_logging(log_level)
+    logger.info("Starting grafl")
+    logger.debug(f"Log level: {log_level}")
+    
     # Text provided as argument or read from stdin
     text = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else sys.stdin.read()
     
     if not text.strip():
+        logger.error("No text to speak")
         print("No text to speak", file=sys.stderr)
         sys.exit(1)
     
-    # Create and validate TTS provider (currently only Piper)
-    tts_provider = PiperTTSProvider()
-    if not tts_provider.validate_config():
-        print(f"TTS provider '{tts_provider.name}' is not properly configured", 
-              file=sys.stderr)
+    # Create and validate TTS provider (with automatic fallback)
+    tts_provider, error = create_validated_provider()
+    if error:
+        print(error, file=sys.stderr)
         sys.exit(1)
     
     app = SpeakingApp(text.strip(), tts_provider)
