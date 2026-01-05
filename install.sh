@@ -140,68 +140,28 @@ check_system_deps() {
 }
 
 clone_repo() {
-    local temp_dir
-    temp_dir=$(mktemp -d)
-    trap "rm -rf $temp_dir" EXIT
-    
     info "Cloning grafl repository..."
+    
+    # Remove existing repo to ensure clean state
     if [ -d "$GRAFL_HOME/repo" ]; then
-        info "Repository already exists, updating..."
-        cd "$GRAFL_HOME/repo" || {
-            error "Failed to change to repository directory"
-            exit 1
-        }
-        
-        # Check if branch exists remotely
-        if ! git ls-remote --heads origin "$GRAFL_BRANCH" | grep -q "$GRAFL_BRANCH"; then
-            error "Branch '$GRAFL_BRANCH' does not exist in remote repository"
-            error "Available branches:"
-            git ls-remote --heads origin | sed 's/.*refs\/heads\///' | sed 's/^/  - /'
-            exit 1
-        fi
-        
-        # Fetch the specific branch to ensure we have it
-        git fetch origin "$GRAFL_BRANCH" || {
-            error "Failed to fetch branch '$GRAFL_BRANCH' from origin"
-            exit 1
-        }
-        
-        # Switch to the target branch
-        if git show-ref --verify --quiet refs/heads/"$GRAFL_BRANCH"; then
-            # Local branch exists, checkout and update
-            git checkout "$GRAFL_BRANCH" || {
-                error "Failed to checkout local branch '$GRAFL_BRANCH'"
-                exit 1
-            }
-            # Reset to match remote (in case of divergence)
-            git reset --hard "origin/$GRAFL_BRANCH" || {
-                error "Failed to update branch '$GRAFL_BRANCH'"
-                exit 1
-            }
-        else
-            # Create tracking branch from remote
-            git checkout -b "$GRAFL_BRANCH" --track "origin/$GRAFL_BRANCH" || {
-                error "Failed to create tracking branch '$GRAFL_BRANCH'"
-                exit 1
-            }
-        fi
-    else
-        git clone --branch "$GRAFL_BRANCH" --depth 1 "$GRAFL_REPO" "$GRAFL_HOME/repo" || {
-            error "Failed to clone repository"
-            error "Branch '$GRAFL_BRANCH' may not exist"
-            exit 1
-        }
+        rm -rf "$GRAFL_HOME/repo"
     fi
+    
+    # Clone the specified branch
+    git clone --branch "$GRAFL_BRANCH" --depth 1 "$GRAFL_REPO" "$GRAFL_HOME/repo" || {
+        error "Failed to clone repository"
+        error "Branch '$GRAFL_BRANCH' may not exist"
+        exit 1
+    }
     
     # Verify setup.py exists (required for pip install -e)
     if [ ! -f "$GRAFL_HOME/repo/setup.py" ]; then
         error "setup.py not found in cloned repository"
-        error "Current branch: $(cd "$GRAFL_HOME/repo" && git branch --show-current)"
-        error "This usually means the branch '$GRAFL_BRANCH' doesn't have setup.py"
+        error "Branch '$GRAFL_BRANCH' may not have setup.py"
         exit 1
     fi
     
-    success "Repository cloned/updated"
+    success "Repository cloned"
 }
 
 create_venv() {
@@ -452,6 +412,12 @@ main() {
     echo -e "${BLUE}║   grafl Installation Script           ║${NC}"
     echo -e "${BLUE}╚═══════════════════════════════════════╝${NC}"
     echo ""
+    
+    # Remove existing installation to avoid issues
+    if [ -d "$GRAFL_HOME" ]; then
+        info "Removing existing installation..."
+        rm -rf "$GRAFL_HOME"
+    fi
     
     check_python || exit 1
     check_system_deps
