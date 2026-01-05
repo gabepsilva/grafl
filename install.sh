@@ -405,7 +405,7 @@ done
 main() {
     echo ""
     echo -e "${BLUE}╔═══════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║   grafl Installation Script          ║${NC}"
+    echo -e "${BLUE}║   grafl Installation Script           ║${NC}"
     echo -e "${BLUE}╚═══════════════════════════════════════╝${NC}"
     echo ""
     

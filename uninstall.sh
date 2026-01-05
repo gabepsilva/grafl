@@ -61,7 +61,12 @@ check_installation() {
         found=1
     fi
     
-    return $found
+    # Return 0 (success) if found, 1 (failure) if not found
+    if [ $found -eq 1 ]; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 # List all files/directories that will be removed
