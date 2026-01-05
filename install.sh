@@ -17,7 +17,7 @@ GRAFL_BIN="$HOME/.local/bin/grafl"
 GRAFL_VENV="$GRAFL_HOME/venv"
 GRAFL_MODELS="$GRAFL_HOME/models"
 GRAFL_REPO="${GRAFL_REPO:-https://github.com/gabepsilva/grafl.git}"
-GRAFL_BRANCH="${GRAFL_BRANCH:-master}"
+GRAFL_BRANCH="${GRAFL_BRANCH:-install-test}"
 DOWNLOAD_MODELS="${DOWNLOAD_MODELS:-}"
 
 # Functions
