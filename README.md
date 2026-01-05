@@ -36,18 +36,16 @@ All Python dependencies are automatically installed into an isolated virtual env
 
 ### Quick Install (Recommended)
 
-> **Note:** Currently using `install-test` branch as default until the installer is stable. Once stable, we'll default to `master` with the option to use other branches.
-
 Install grafl with a single command:
 
 ```bash
-curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/refs/heads/install-test/install.sh | sh
+curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/refs/heads/master/install.sh | sh
 ```
 
 Or if you prefer to review the script first:
 
 ```bash
-curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/refs/heads/install-test/install.sh -o install.sh
+curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/refs/heads/master/install.sh -o install.sh
 chmod +x install.sh
 ./install.sh
 ```
@@ -56,12 +54,12 @@ Install from a different branch:
 
 ```bash
 # Using environment variable
-GRAFL_BRANCH=master curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/refs/heads/install-test/install.sh | sh
+GRAFL_BRANCH=develop curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/refs/heads/master/install.sh | sh
 
 # Using command-line argument (after downloading script)
-curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/refs/heads/install-test/install.sh -o install.sh
+curl -sS https://raw.githubusercontent.com/gabepsilva/grafl/refs/heads/master/install.sh -o install.sh
 chmod +x install.sh
-./install.sh --branch master
+./install.sh --branch develop
 ```
 
 ### Installation Options

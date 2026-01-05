@@ -38,11 +38,7 @@ error() {
 }
 
 check_command() {
-    if command -v "$1" >/dev/null 2>&1; then
-        return 0
-    else
-        return 1
-    fi
+    command -v "$1" >/dev/null 2>&1
 }
 
 check_python() {
@@ -166,16 +162,8 @@ clone_repo() {
 
 create_venv() {
     info "Creating virtual environment..."
-    if [ -d "$GRAFL_VENV" ]; then
-        if [ "${REINSTALL:-}" = "1" ]; then
-            info "Removing existing venv (--reinstall flag set)"
-            rm -rf "$GRAFL_VENV"
-        else
-            success "Virtual environment already exists"
-            return 0
-        fi
-    fi
-    
+    # Note: GRAFL_HOME is always removed in main() before this runs,
+    # so we always create a fresh venv
     python3 -m venv "$GRAFL_VENV" || {
         error "Failed to create virtual environment"
         exit 1
@@ -274,24 +262,15 @@ download_models() {
     
     cd "$GRAFL_MODELS"
     
+    local model_base="https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium"
+    local model_name="en_US-lessac-medium"
+    
     if check_command wget; then
-        wget -q https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx || {
-            error "Failed to download model file"
-            return 1
-        }
-        wget -q https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json || {
-            error "Failed to download model config"
-            return 1
-        }
+        wget -q "$model_base/$model_name.onnx" || { error "Failed to download model file"; return 1; }
+        wget -q "$model_base/$model_name.onnx.json" || { error "Failed to download model config"; return 1; }
     elif check_command curl; then
-        curl -sSL -o en_US-lessac-medium.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx || {
-            error "Failed to download model file"
-            return 1
-        }
-        curl -sSL -o en_US-lessac-medium.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json || {
-            error "Failed to download model config"
-            return 1
-        }
+        curl -sSL -o "$model_name.onnx" "$model_base/$model_name.onnx" || { error "Failed to download model file"; return 1; }
+        curl -sSL -o "$model_name.onnx.json" "$model_base/$model_name.onnx.json" || { error "Failed to download model config"; return 1; }
     else
         error "Neither wget nor curl found. Please install one to download models."
         return 1

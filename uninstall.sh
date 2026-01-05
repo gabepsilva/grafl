@@ -37,36 +37,10 @@ error() {
     echo -e "${RED}✗${NC} $1" >&2
 }
 
-# Check if grafl is installed
+# Check if grafl is installed (returns 0 if any grafl files exist)
 check_installation() {
-    local found=0
-    
-    if [ -f "$GRAFL_BIN" ]; then
-        found=1
-    fi
-    
-    if [ -d "$GRAFL_HOME" ]; then
-        found=1
-    fi
-    
-    if [ -f "$GRAFL_DESKTOP" ]; then
-        found=1
-    fi
-    
-    if [ -d "$GRAFL_CONFIG" ]; then
-        found=1
-    fi
-    
-    if [ -d "$GRAFL_CACHE" ]; then
-        found=1
-    fi
-    
-    # Return 0 (success) if found, 1 (failure) if not found
-    if [ $found -eq 1 ]; then
-        return 0
-    else
-        return 1
-    fi
+    [ -f "$GRAFL_BIN" ] || [ -d "$GRAFL_HOME" ] || [ -f "$GRAFL_DESKTOP" ] || \
+    [ -d "$GRAFL_CONFIG" ] || [ -d "$GRAFL_CACHE" ]
 }
 
 # List all files/directories that will be removed
@@ -210,21 +184,8 @@ remove_files() {
         done
     fi
     
-    # Clean up empty parent directories if they're only for grafl
-    if [ -d "$HOME/.local/share" ] && [ -z "$(ls -A "$HOME/.local/share" 2>/dev/null)" ]; then
-        info "Removing empty share directory..."
-        rmdir "$HOME/.local/share" 2>/dev/null || true
-    fi
-    
-    if [ -d "$HOME/.local/bin" ] && [ -z "$(ls -A "$HOME/.local/bin" 2>/dev/null)" ]; then
-        info "Removing empty bin directory..."
-        rmdir "$HOME/.local/bin" 2>/dev/null || true
-    fi
-    
-    if [ -d "$HOME/.local" ] && [ -z "$(ls -A "$HOME/.local" 2>/dev/null)" ]; then
-        info "Removing empty .local directory..."
-        rmdir "$HOME/.local" 2>/dev/null || true
-    fi
+    # Note: We intentionally don't remove ~/.local, ~/.local/bin, or ~/.local/share
+    # even if empty - these are standard XDG directories used by other applications
     
     return $errors
 }
